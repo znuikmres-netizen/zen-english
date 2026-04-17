@@ -1,0 +1,22 @@
+{
+  "sources": [
+    {
+      "name": "VoiceTube",
+      "type": "voicetube",
+      "url": "https://tw.voicetube.com",
+      "description": "VoiceTube 每日精選影片，含中英字幕"
+    },
+    {
+      "name": "BBC Learning English",
+      "type": "bbc",
+      "url": "https://www.bbc.com/learningenglish/english/vocabulary",
+      "description": "BBC 學英文，每日單字與片語"
+    },
+    {
+      "name": "TED Talks",
+      "type": "ted",
+      "url": "https://www.ted.com/talks",
+      "description": "TED 演講，含逐字稿"
+    }
+  ]
+}

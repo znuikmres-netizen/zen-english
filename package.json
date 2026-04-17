@@ -1,0 +1,12 @@
+{
+  "name": "zen-english",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "ZenEnglish - 個人化英文學習網頁，自動每日更新",
+  "scripts": {
+    "update": "node scripts/update.mjs"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0"
+  }
+}

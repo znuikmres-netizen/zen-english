@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZenEnglish — 個人化英文學習</title>
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!--
+  ============================================================
+  Notion API 設定說明
+  ============================================================
+  1. 前往 https://www.notion.so/my-integrations 建立 Integration
+  2. 複製 Token，填入 JS 的 NOTION_CONFIG.API_KEY
+  3. 建立 Database（打卡 / 生字庫），ID 填入 DATABASE_IDS
+  4. 需透過後端 proxy 轉發（CORS 限制）
+  ============================================================
+-->
+
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: { sans: ['"PingFang TC"', '"Microsoft JhengHei"', 'system-ui', 'sans-serif'] },
+      colors: {
+        cream: '#F9F9F8', charcoal: '#333333',
+        morandi: { green: '#A8B5A2', pink: '#C4A9A1', blue: '#9AACB8', purple: '#B8A9C8', sand: '#C8BFA9', grey: '#B0ADA8' },
+      },
+    },
+  },
+}
+</script>
+
+<style>
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
+  .dark ::-webkit-scrollbar-thumb { background: #555; }
+  .cal-cell { transition: all 0.2s ease; }
+  .cal-cell:hover { transform: scale(1.15); }
+  .cal-cell.checked { animation: pop 0.3s ease; }
+  @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
+  .card-flip { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+  .card-flip:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+  .dark .card-flip:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
+  .transcript-line { cursor: pointer; padding: 6px 8px; border-radius: 6px; transition: background 0.15s; }
+  .transcript-line:hover { background: rgba(168,181,162,0.15); }
+  .transcript-line.active { background: rgba(168,181,162,0.3); font-weight: 600; }
+  .dark .transcript-line:hover { background: rgba(168,181,162,0.2); }
+  .dark .transcript-line.active { background: rgba(168,181,162,0.35); }
+  .transcript-zh { display: none; font-style: normal; font-weight: 400; }
+  .show-zh .transcript-zh { display: block; }
+  .tab-btn { position: relative; }
+  .tab-btn::after { content: ''; position: absolute; bottom: -2px; left: 50%; width: 0; height: 2px; background: #A8B5A2; transition: all 0.2s; transform: translateX(-50%); }
+  .tab-btn.active::after { width: 80%; }
+  .fam-tag { font-size: 0.65rem; padding: 1px 8px; border-radius: 999px; cursor: pointer; transition: all 0.15s; }
+  @keyframes pulse-dot { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
+  .loading-dot { animation: pulse-dot 1.4s infinite; }
+  .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+</style>
+</head>
+
+<body class="bg-cream text-charcoal font-sans transition-colors duration-300 dark:bg-gray-900 dark:text-gray-100">
+
+<header class="sticky top-0 z-50 backdrop-blur-md bg-cream/80 dark:bg-gray-900/80 border-b border-gray-200/50 dark:border-gray-700/50">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <h1 class="text-xl font-bold tracking-wide"><span class="text-morandi-green">Zen</span>English</h1>
+    <div class="flex items-center gap-3">
+      <span id="headerDate" class="text-xs text-gray-400 hidden sm:block"></span>
+      <button id="darkToggle" onclick="toggleDark()" class="w-9 h-9 rounded-full border border-gray-200 dark:border-gray-600 flex items-center justify-center text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition">🌙</button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-6 space-y-8">
+
+  <!-- 每日一句 -->
+  <section class="text-center py-8">
+    <p id="dailyQuote" class="text-lg sm:text-xl italic text-gray-500 dark:text-gray-400 leading-relaxed max-w-2xl mx-auto"></p>
+    <p id="dailyQuoteZh" class="mt-1.5 text-sm text-gray-400 dark:text-gray-500 max-w-xl mx-auto"></p>
+    <p id="dailyQuoteAuthor" class="mt-2 text-sm text-morandi-green font-medium"></p>
+    <p id="todayDate" class="mt-3 text-xs text-gray-400 tracking-widest uppercase"></p>
+    <p id="dataInfo" class="mt-1 text-[10px] text-gray-300 dark:text-gray-600"></p>
+  </section>
+
+  <!-- 即時查詢 -->
+  <section>
+    <div class="flex items-center gap-2 mb-3">
+      <div class="w-1 h-5 bg-morandi-grey rounded-full"></div>
+      <h2 class="text-lg font-semibold">即時查詢</h2>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+      <div class="flex gap-2">
+        <input id="dictInput" type="text" placeholder="輸入英文單字或句子..."
+          class="flex-1 text-sm px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent focus:outline-none focus:border-morandi-grey"
+          onkeydown="if(event.key==='Enter') lookupWord()">
+        <button onclick="lookupWord()" class="text-sm px-5 py-2.5 bg-charcoal dark:bg-gray-600 text-white rounded-lg hover:opacity-90 transition">查詢</button>
+      </div>
+      <div id="dictResult" class="mt-4 hidden"></div>
+    </div>
+  </section>
+
+  <!-- TED Talk -->
+  <section>
+    <div class="flex items-center gap-2 mb-4">
+      <div class="w-1 h-5 bg-morandi-green rounded-full"></div>
+      <h2 class="text-lg font-semibold">TED Talk 跟讀練習</h2>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="aspect-video rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 shadow-sm">
+        <iframe id="tedVideo" src="" width="100%" height="100%" frameborder="0" allowfullscreen class="w-full h-full"></iframe>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 max-h-80 overflow-y-auto">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-medium text-gray-400 uppercase tracking-wider">Transcript</span>
+          <div class="flex items-center gap-2">
+            <button id="toggleZhBtn" onclick="toggleTranscriptZh()" class="text-xs text-gray-400 hover:text-morandi-green transition">中文</button>
+            <button id="pauseBtn" onclick="togglePause()" class="text-xs text-gray-400 hover:text-morandi-green transition hidden">⏸ 暫停</button>
+            <button onclick="readAllTranscript()" class="text-xs text-morandi-green hover:underline">▶ 朗讀全部</button>
+          </div>
+        </div>
+        <div id="transcriptArea" class="space-y-1 text-sm leading-relaxed">
+          <p class="text-xs text-gray-400 py-4 text-center">請選擇 TED Talk 影片</p>
+        </div>
+      </div>
+    </div>
+    <div class="mt-3 flex flex-wrap gap-2">
+      <input id="tedUrlInput" type="text" placeholder="貼上 TED Talk 網址以更換影片..."
+        class="flex-1 min-w-0 text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent focus:outline-none focus:border-morandi-green">
+      <button onclick="changeTedVideo()" class="text-sm px-4 py-2 bg-morandi-green text-white rounded-lg hover:opacity-90 transition">更換</button>
+    </div>
+  </section>
+
+  <!-- 手機版 Tab -->
+  <div class="flex gap-6 border-b border-gray-200 dark:border-gray-700 lg:hidden mb-4">
+    <button class="tab-btn active pb-2 text-sm font-medium" onclick="switchTab('words')">單字與俚語</button>
+    <button class="tab-btn pb-2 text-sm font-medium" onclick="switchTab('calendar')">打卡日曆</button>
+  </div>
+
+  <!-- 單字卡 + 日曆 -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div id="tabWords" class="lg:col-span-2 space-y-6">
+      <div>
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-1 h-5 bg-morandi-blue rounded-full"></div>
+          <h2 class="text-lg font-semibold">每日 5 單字</h2>
+        </div>
+        <div id="wordCards" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+      </div>
+      <div>
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-1 h-5 bg-morandi-purple rounded-full"></div>
+          <h2 class="text-lg font-semibold">3 組常用俚語</h2>
+        </div>
+        <div id="slangCards" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
+      </div>
+    </div>
+    <div id="tabCalendar" class="hidden lg:block">
+      <div class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <div class="w-1 h-5 bg-morandi-pink rounded-full"></div>
+            <h2 class="text-lg font-semibold">學習打卡</h2>
+          </div>
+          <div id="streakBadge" class="flex items-center gap-1 text-sm font-bold text-orange-500">🔥 <span id="streakCount">0</span> 天</div>
+        </div>
+        <div class="flex items-center justify-between mb-3">
+          <button onclick="changeMonth(-1)" class="text-gray-400 hover:text-charcoal dark:hover:text-white text-lg">‹</button>
+          <span id="calMonthLabel" class="text-sm font-medium"></span>
+          <button onclick="changeMonth(1)" class="text-gray-400 hover:text-charcoal dark:hover:text-white text-lg">›</button>
+        </div>
+        <div class="grid grid-cols-7 text-center text-xs text-gray-400 mb-1">
+          <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+        </div>
+        <div id="calGrid" class="grid grid-cols-7 gap-1"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 文本解析 -->
+  <section>
+    <div class="flex items-center gap-2 mb-3">
+      <div class="w-1 h-5 bg-morandi-sand rounded-full"></div>
+      <h2 class="text-lg font-semibold">文本解析工具</h2>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+      <textarea id="parseInput" rows="3" placeholder="在此貼上英文文章或段落，系統將自動提取單字與俚語..."
+        class="w-full text-sm p-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent focus:outline-none focus:border-morandi-sand resize-none"></textarea>
+      <div class="flex justify-end mt-2">
+        <button onclick="parseText()" class="text-sm px-4 py-2 bg-morandi-sand text-white rounded-lg hover:opacity-90 transition">解析文本</button>
+      </div>
+      <div id="parseResult" class="mt-3 hidden"></div>
+    </div>
+  </section>
+
+  <!-- 個人生字庫 -->
+  <section>
+    <div class="flex items-center gap-2 mb-3">
+      <div class="w-1 h-5 bg-morandi-pink rounded-full"></div>
+      <h2 class="text-lg font-semibold">個人生字庫</h2>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+      <div class="flex flex-wrap gap-2 mb-4">
+        <input id="bankSearch" type="text" placeholder="搜尋單字..." oninput="renderWordBank()"
+          class="flex-1 min-w-[140px] text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent focus:outline-none focus:border-morandi-pink">
+        <select id="bankFilter" onchange="renderWordBank()" class="text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent focus:outline-none">
+          <option value="all">全部</option><option value="unfamiliar">生疏</option><option value="familiar">熟悉</option><option value="mastered">已掌握</option>
+        </select>
+        <select id="bankPosFilter" onchange="renderWordBank()" class="text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent focus:outline-none">
+          <option value="all">全部詞性</option><option value="n.">名詞</option><option value="v.">動詞</option><option value="adj.">形容詞</option><option value="adv.">副詞</option>
+        </select>
+      </div>
+      <div class="flex flex-wrap gap-2 mb-4 pb-4 border-b border-gray-100 dark:border-gray-700">
+        <input id="bankNewWord" type="text" placeholder="英文單字" class="flex-1 min-w-[100px] text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent focus:outline-none">
+        <input id="bankNewMeaning" type="text" placeholder="中文意思" class="flex-1 min-w-[100px] text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent focus:outline-none">
+        <button onclick="addToBank()" class="text-sm px-4 py-2 bg-morandi-pink text-white rounded-lg hover:opacity-90 transition">加入</button>
+      </div>
+      <div id="wordBankList" class="space-y-2 max-h-72 overflow-y-auto"></div>
+      <p id="bankEmpty" class="text-center text-sm text-gray-400 py-6">還沒有收藏的生字，從單字卡點擊 ＋ 或手動新增吧</p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="text-center py-6 text-xs text-gray-400 border-t border-gray-100 dark:border-gray-800">
+  ZenEnglish · Built for Tim · 2026
+</footer>
+
+<script>
+// ============================================================
+// Notion API（預留）
+// ============================================================
+const NOTION_CONFIG = {
+  API_KEY: 'ntn_your_token_here',
+  PROXY_URL: 'https://your-proxy.workers.dev',
+  DATABASE_IDS: { checkin: 'your_id', wordBank: 'your_id' },
+};
+const NotionAPI = {
+  async syncCheckin(date, completed) {
+    try {
+      await fetch(`${NOTION_CONFIG.PROXY_URL}/v1/pages`, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${NOTION_CONFIG.API_KEY}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent: { database_id: NOTION_CONFIG.DATABASE_IDS.checkin }, properties: { Date: { date: { start: date } }, Completed: { checkbox: completed } } }),
+      });
+    } catch {}
+  },
+  async syncWordBank(word, translation, source = 'manual') {
+    try {
+      await fetch(`${NOTION_CONFIG.PROXY_URL}/v1/pages`, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${NOTION_CONFIG.API_KEY}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent: { database_id: NOTION_CONFIG.DATABASE_IDS.wordBank }, properties: { Word: { title: [{ text: { content: word } }] }, Translation: { rich_text: [{ text: { content: translation } }] } } }),
+      });
+    } catch {}
+  },
+};
+
+// ============================================================
+// 全域狀態
+// ============================================================
+let DATA = null;
+let checkinData = JSON.parse(localStorage.getItem('zen_checkin') || '{}');
+let wordBank = JSON.parse(localStorage.getItem('zen_wordbank') || '[]');
+let calYear, calMonth;
+let isReadingAll = false;
+let showTranscriptZh = false;
+
+// ============================================================
+// 載入 data.json + 初始化
+// ============================================================
+document.addEventListener('DOMContentLoaded', async () => {
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+  calYear = now.getFullYear();
+  calMonth = now.getMonth();
+
+  const opts = { timeZone: 'Asia/Taipei', year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+  const dateStr = now.toLocaleDateString('zh-TW', opts);
+  document.getElementById('todayDate').textContent = dateStr;
+  document.getElementById('headerDate').textContent = dateStr;
+
+  if (localStorage.getItem('zen_dark') === 'true') {
+    document.documentElement.classList.add('dark');
+    document.getElementById('darkToggle').textContent = '☀️';
+  }
+
+  // 載入資料
+  try {
+    const res = await fetch('data.json');
+    DATA = await res.json();
+  } catch {
+    DATA = { vocabulary: [], slangs: [], quotes: [], tedSlugs: [] };
+  }
+
+  const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
+
+  // 每日一句
+  if (DATA.quotes?.length) {
+    const q = DATA.quotes[dayOfYear % DATA.quotes.length];
+    document.getElementById('dailyQuote').textContent = `"${q.text}"`;
+    document.getElementById('dailyQuoteZh').textContent = q.zh;
+    document.getElementById('dailyQuoteAuthor').textContent = `— ${q.author}`;
+  }
+
+  // 資料庫狀態
+  document.getElementById('dataInfo').textContent =
+    `題庫：${DATA.vocabulary?.length || 0} 單字 · ${DATA.slangs?.length || 0} 俚語 · 上次更新 ${DATA.lastUpdated ? new Date(DATA.lastUpdated).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' }) : '—'}`;
+
+  // TED Talk（依日期輪替）+ 逐字稿
+  if (DATA.tedSlugs?.length) {
+    const slug = DATA.tedSlugs[dayOfYear % DATA.tedSlugs.length];
+    document.getElementById('tedVideo').src = `https://embed.ted.com/talks/${slug}`;
+    renderTranscript(slug);
+  }
+
+  renderWordCards(dayOfYear);
+  renderSlangCards(dayOfYear);
+  renderCalendar();
+  renderWordBank();
+});
+
+// ============================================================
+// 深色模式
+// ============================================================
+function toggleDark() {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem('zen_dark', isDark);
+  document.getElementById('darkToggle').textContent = isDark ? '☀️' : '🌙';
+}
+
+// 手機 Tab
+function switchTab(tab) {
+  const w = document.getElementById('tabWords'), c = document.getElementById('tabCalendar');
+  const btns = document.querySelectorAll('.tab-btn');
+  btns.forEach(b => b.classList.remove('active'));
+  if (tab === 'words') { w.classList.remove('hidden'); c.classList.add('hidden'); btns[0].classList.add('active'); }
+  else { w.classList.add('hidden'); c.classList.remove('hidden', 'lg:block'); c.classList.add('block'); btns[1].classList.add('active'); }
+}
+
+// ============================================================
+// Web Speech API
+// ============================================================
+function speak(text) {
+  if (!('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'en-US'; u.rate = 0.9;
+  speechSynthesis.speak(u);
+}
+
+function speakLine(el) {
+  document.querySelectorAll('.transcript-line').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+  speak(el.querySelector('.transcript-en')?.textContent || el.textContent);
+}
+
+function readAllTranscript() {
+  if (isReadingAll) { stopReading(); return; }
+  isReadingAll = true;
+  document.getElementById('pauseBtn').classList.remove('hidden');
+  const lines = document.querySelectorAll('.transcript-line');
+  let i = 0;
+  function next() {
+    if (!isReadingAll || i >= lines.length) { stopReading(); return; }
+    lines.forEach(e => e.classList.remove('active'));
+    lines[i].classList.add('active');
+    lines[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const u = new SpeechSynthesisUtterance(lines[i].querySelector('.transcript-en')?.textContent || lines[i].textContent);
+    u.lang = 'en-US'; u.rate = 0.85;
+    u.onend = () => { i++; setTimeout(next, 300); };
+    speechSynthesis.speak(u);
+  }
+  speechSynthesis.cancel(); next();
+}
+
+function togglePause() {
+  if (speechSynthesis.paused) { speechSynthesis.resume(); document.getElementById('pauseBtn').innerHTML = '⏸ 暫停'; }
+  else if (speechSynthesis.speaking) { speechSynthesis.pause(); document.getElementById('pauseBtn').innerHTML = '▶ 繼續'; }
+}
+
+function stopReading() {
+  isReadingAll = false; speechSynthesis.cancel();
+  document.getElementById('pauseBtn').classList.add('hidden');
+}
+
+function toggleTranscriptZh() {
+  showTranscriptZh = !showTranscriptZh;
+  document.getElementById('transcriptArea').classList.toggle('show-zh', showTranscriptZh);
+  const btn = document.getElementById('toggleZhBtn');
+  btn.textContent = showTranscriptZh ? '隱藏中文' : '中文';
+  btn.classList.toggle('text-morandi-green', showTranscriptZh);
+}
+
+function changeTedVideo() {
+  const input = document.getElementById('tedUrlInput').value.trim();
+  if (!input) return;
+  const match = input.match(/ted\.com\/talks\/([\w_]+)/);
+  if (match) {
+    document.getElementById('tedVideo').src = `https://embed.ted.com/talks/${match[1]}`;
+    document.getElementById('tedUrlInput').value = '';
+    renderTranscript(match[1]);
+  } else alert('請貼上有效的 TED Talk 網址');
+}
+
+// 渲染逐字稿
+function renderTranscript(slug) {
+  const area = document.getElementById('transcriptArea');
+  const lines = DATA.transcripts?.[slug];
+  if (!lines || !lines.length) {
+    area.innerHTML = '<p class="text-xs text-gray-400 py-4 text-center">此演講暫無逐字稿資料</p>';
+    return;
+  }
+  area.innerHTML = lines.map((line, i) => `
+    <div class="transcript-line" onclick="speakLine(this)" data-index="${i}">
+      <div class="transcript-en">${escapeHtml(line.en)}</div>
+      <div class="transcript-zh text-xs text-morandi-green/70 mt-0.5">${escapeHtml(line.zh)}</div>
+    </div>
+  `).join('');
+}
+
+// ============================================================
+// 渲染每日單字（從 data.json 依日期選 5 個）
+// ============================================================
+function renderWordCards(dayOfYear) {
+  const container = document.getElementById('wordCards');
+  if (!DATA.vocabulary?.length) { container.innerHTML = '<p class="text-sm text-gray-400 col-span-2 text-center py-4">資料載入中...</p>'; return; }
+
+  const total = DATA.vocabulary.length;
+  const startIdx = (dayOfYear * 5) % total;
+  const todayWords = [];
+  for (let i = 0; i < Math.min(5, total); i++) {
+    todayWords.push(DATA.vocabulary[(startIdx + i) % total]);
+  }
+
+  const colors = ['morandi-green', 'morandi-blue', 'morandi-purple', 'morandi-sand', 'morandi-pink'];
+  container.innerHTML = todayWords.map((w, i) => {
+    const c = colors[i % colors.length];
+    const tenseHtml = w.tenses?.length
+      ? `<div class="mt-2 flex flex-wrap gap-1">${w.tenses.map(t =>
+          `<span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"><span class="text-gray-400 dark:text-gray-500">${t.label}</span> ${t.en}</span>`
+        ).join('')}</div>` : '';
+
+    const safeWord = escapeAttr(w.word);
+    const safeMeaning = escapeAttr(w.meaning || w.definition || '');
+
+    return `
+      <div class="card-flip bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-base">${escapeHtml(w.word)}</span>
+              <span class="text-xs text-${c}">${w.pos || ''}</span>
+              ${w.phonetic ? `<span class="text-xs text-gray-400">${escapeHtml(w.phonetic)}</span>` : ''}
+              <button onclick="speak('${safeWord}')" class="text-gray-400 hover:text-${c} text-sm">🔊</button>
+            </div>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">${escapeHtml(w.meaning || w.definition || '')}</p>
+          </div>
+          <button onclick="addToBankFromCard('${safeWord}','${safeMeaning}')" class="text-gray-300 hover:text-morandi-pink text-lg leading-none" title="加入生字庫">＋</button>
+        </div>
+        ${tenseHtml}
+        <div class="mt-2.5 pl-2 border-l-2 border-gray-100 dark:border-gray-700">
+          <p class="text-xs text-gray-500 dark:text-gray-400 italic leading-relaxed">"${escapeHtml(w.example || '')}"</p>
+          ${w.exampleZh ? `<p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">${escapeHtml(w.exampleZh)}</p>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ============================================================
+// 渲染俚語（從 data.json 依日期選 3 個）
+// ============================================================
+function renderSlangCards(dayOfYear) {
+  const container = document.getElementById('slangCards');
+  if (!DATA.slangs?.length) return;
+
+  const total = DATA.slangs.length;
+  const startIdx = (dayOfYear * 3) % total;
+  const todaySlangs = [];
+  for (let i = 0; i < Math.min(3, total); i++) {
+    todaySlangs.push(DATA.slangs[(startIdx + i) % total]);
+  }
+
+  container.innerHTML = todaySlangs.map(s => `
+    <div class="card-flip bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="font-bold text-sm">${escapeHtml(s.phrase)}</span>
+        <button onclick="speak('${escapeAttr(s.phrase)}')" class="text-gray-400 hover:text-morandi-purple text-sm">🔊</button>
+      </div>
+      <p class="text-sm text-gray-500 dark:text-gray-400">${escapeHtml(s.meaning)}</p>
+      <div class="mt-2 pl-2 border-l-2 border-gray-100 dark:border-gray-700">
+        <p class="text-xs text-gray-400 italic">"${escapeHtml(s.example)}"</p>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">${escapeHtml(s.exampleZh)}</p>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ============================================================
+// 即時查詢
+// ============================================================
+async function lookupWord() {
+  const input = document.getElementById('dictInput').value.trim();
+  if (!input) return;
+  const container = document.getElementById('dictResult');
+  container.classList.remove('hidden');
+  container.innerHTML = '<div class="flex items-center gap-1 text-sm text-gray-400">查詢中<span class="loading-dot">.</span><span class="loading-dot">.</span><span class="loading-dot">.</span></div>';
+
+  const isSentence = input.includes(' ') && input.split(' ').length > 2;
+
+  if (isSentence) {
+    try {
+      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(input)}&langpair=en|zh-TW`);
+      const data = await res.json();
+      const translated = data.responseData?.translatedText || '翻譯失敗';
+      container.innerHTML = `
+        <div class="space-y-3">
+          <div class="flex items-start gap-2">
+            <button onclick="speak('${escapeAttr(input)}')" class="text-gray-400 hover:text-morandi-blue mt-0.5">🔊</button>
+            <div>
+              <p class="text-sm font-medium">${escapeHtml(input)}</p>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">${escapeHtml(translated)}</p>
+            </div>
+          </div>
+          <button onclick="addToBankFromDict('${escapeAttr(input)}','${escapeAttr(translated)}')" class="text-xs text-morandi-pink hover:underline">＋ 加入生字庫</button>
+        </div>`;
+    } catch { container.innerHTML = '<p class="text-sm text-red-400">翻譯服務暫時無法使用</p>'; }
+    return;
+  }
+
+  try {
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(input.toLowerCase())}`);
+    if (!res.ok) { container.innerHTML = `<p class="text-sm text-gray-400">查無此字「${escapeHtml(input)}」</p>`; return; }
+    const data = await res.json();
+    const entry = data[0];
+    const phonetic = entry.phonetic || entry.phonetics?.find(p => p.text)?.text || '';
+    const audioUrl = entry.phonetics?.find(p => p.audio)?.audio || '';
+    let zhMeaning = '';
+    try { const z = await (await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(input)}&langpair=en|zh-TW`)).json(); zhMeaning = z.responseData?.translatedText || ''; } catch {}
+
+    const posMap = { noun: '名詞', verb: '動詞', adjective: '形容詞', adverb: '副詞', conjunction: '連接詞', preposition: '介系詞', interjection: '感嘆詞' };
+    let html = `<div class="space-y-3"><div class="flex items-center gap-3">
+      <span class="text-xl font-bold">${escapeHtml(entry.word)}</span>
+      ${phonetic ? `<span class="text-sm text-gray-400">${escapeHtml(phonetic)}</span>` : ''}
+      <button onclick="${audioUrl ? `new Audio('${audioUrl}').play()` : `speak('${escapeAttr(entry.word)}')`}" class="text-gray-400 hover:text-morandi-blue">🔊</button>
+      <button onclick="addToBankFromDict('${escapeAttr(entry.word)}','${escapeAttr(zhMeaning || '')}')" class="text-xs text-morandi-pink hover:underline ml-auto">＋ 加入生字庫</button>
+    </div>${zhMeaning ? `<p class="text-sm text-morandi-green">${escapeHtml(zhMeaning)}</p>` : ''}`;
+
+    (entry.meanings || []).forEach(m => {
+      html += `<div class="pl-3 border-l-2 border-gray-100 dark:border-gray-700">
+        <p class="text-xs font-medium text-morandi-blue mb-1">${posMap[m.partOfSpeech] || m.partOfSpeech} (${m.partOfSpeech})</p>`;
+      m.definitions.slice(0, 3).forEach((d, i) => {
+        html += `<p class="text-sm text-gray-600 dark:text-gray-300 mb-0.5">${i + 1}. ${escapeHtml(d.definition)}</p>`;
+        if (d.example) html += `<p class="text-xs text-gray-400 italic mb-1.5 ml-3">"${escapeHtml(d.example)}"</p>`;
+      });
+      if (m.synonyms?.length) html += `<p class="text-xs text-gray-400 mt-1">同義詞：${m.synonyms.slice(0, 5).map(s => `<span class="cursor-pointer text-morandi-sand hover:underline" onclick="document.getElementById('dictInput').value='${escapeAttr(s)}';lookupWord()">${escapeHtml(s)}</span>`).join('、')}</p>`;
+      html += '</div>';
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  } catch { container.innerHTML = '<p class="text-sm text-red-400">查詢服務暫時無法使用</p>'; }
+}
+
+function addToBankFromDict(word, meaning) {
+  if (wordBank.find(w => w.word.toLowerCase() === word.toLowerCase())) { alert(`「${word}」已經在生字庫裡了`); return; }
+  wordBank.unshift({ word, meaning: meaning || '（待翻譯）', source: 'lookup', familiarity: 'unfamiliar', created: new Date().toISOString() });
+  saveBank(); renderWordBank();
+  NotionAPI.syncWordBank(word, meaning || '', 'lookup');
+}
+
+// ============================================================
+// 打卡日曆
+// ============================================================
+function renderCalendar() {
+  const grid = document.getElementById('calGrid');
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  document.getElementById('calMonthLabel').textContent = `${calYear} 年 ${calMonth + 1} 月`;
+  const firstDay = new Date(calYear, calMonth, 1);
+  let startDay = firstDay.getDay() - 1; if (startDay < 0) startDay = 6;
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  let html = '';
+  for (let i = 0; i < startDay; i++) html += '<div></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isChecked = checkinData[ds], isToday = ds === todayStr, isFuture = new Date(calYear, calMonth, d) > now;
+    let cls = 'cal-cell w-full aspect-square rounded-lg flex items-center justify-center text-xs cursor-pointer transition ';
+    if (isChecked) cls += 'checked bg-morandi-green text-white font-bold ';
+    else if (isToday) cls += 'border-2 border-morandi-green text-morandi-green font-bold ';
+    else if (isFuture) cls += 'text-gray-300 dark:text-gray-600 ';
+    else cls += 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 ';
+    html += `<div class="${cls}" onclick="${isFuture ? '' : `toggleCheckin('${ds}')`}">${isChecked ? '✓' : d}</div>`;
+  }
+  grid.innerHTML = html; updateStreak();
+}
+function toggleCheckin(ds) { checkinData[ds] = !checkinData[ds]; if (!checkinData[ds]) delete checkinData[ds]; localStorage.setItem('zen_checkin', JSON.stringify(checkinData)); renderCalendar(); NotionAPI.syncCheckin(ds, !!checkinData[ds]); }
+function changeMonth(d) { calMonth += d; if (calMonth < 0) { calMonth = 11; calYear--; } if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendar(); }
+function updateStreak() {
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+  let streak = 0, d = new Date(now);
+  const todayStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  if (!checkinData[todayStr]) d.setDate(d.getDate() - 1);
+  while (true) { const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; if (checkinData[ds]) { streak++; d.setDate(d.getDate() - 1); } else break; }
+  document.getElementById('streakCount').textContent = streak;
+  document.getElementById('streakBadge').style.display = streak > 0 ? 'flex' : 'none';
+}
+
+// ============================================================
+// 個人生字庫
+// ============================================================
+function addToBankFromCard(word, meaning) {
+  if (wordBank.find(w => w.word === word)) { alert(`「${word}」已經在生字庫裡了`); return; }
+  wordBank.unshift({ word, meaning, source: 'card', familiarity: 'unfamiliar', created: new Date().toISOString() });
+  saveBank(); renderWordBank(); NotionAPI.syncWordBank(word, meaning, 'card');
+}
+function addToBank() {
+  const word = document.getElementById('bankNewWord').value.trim(), meaning = document.getElementById('bankNewMeaning').value.trim();
+  if (!word) return;
+  if (wordBank.find(w => w.word.toLowerCase() === word.toLowerCase())) { alert(`「${word}」已經在生字庫裡了`); return; }
+  wordBank.unshift({ word, meaning: meaning || '（待翻譯）', source: 'manual', familiarity: 'unfamiliar', created: new Date().toISOString() });
+  saveBank(); renderWordBank();
+  document.getElementById('bankNewWord').value = ''; document.getElementById('bankNewMeaning').value = '';
+  NotionAPI.syncWordBank(word, meaning || '', 'manual');
+}
+function saveBank() { localStorage.setItem('zen_wordbank', JSON.stringify(wordBank)); }
+function cycleFamiliarity(i) { const o = ['unfamiliar','familiar','mastered']; const c = o.indexOf(wordBank[i].familiarity); wordBank[i].familiarity = o[(c+1)%3]; saveBank(); renderWordBank(); }
+function removeFromBank(i) { wordBank.splice(i, 1); saveBank(); renderWordBank(); }
+function renderWordBank() {
+  const search = document.getElementById('bankSearch').value.toLowerCase();
+  const filter = document.getElementById('bankFilter').value;
+  const posFilter = document.getElementById('bankPosFilter').value;
+  let filtered = wordBank.filter(w => {
+    if (search && !w.word.toLowerCase().includes(search) && !w.meaning.includes(search)) return false;
+    if (filter !== 'all' && w.familiarity !== filter) return false;
+    if (posFilter !== 'all' && w.pos && w.pos !== posFilter) return false;
+    return true;
+  });
+  const list = document.getElementById('wordBankList'), empty = document.getElementById('bankEmpty');
+  if (!filtered.length) { list.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  const fl = { unfamiliar: '生疏', familiar: '熟悉', mastered: '已掌握' };
+  const fc = { unfamiliar: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400', familiar: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', mastered: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' };
+  list.innerHTML = filtered.map(w => {
+    const ri = wordBank.indexOf(w);
+    return `<div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition group">
+      <div class="flex items-center gap-3"><button onclick="speak('${escapeAttr(w.word)}')" class="text-gray-300 group-hover:text-morandi-blue text-sm">🔊</button>
+      <span class="font-medium text-sm">${escapeHtml(w.word)}</span><span class="text-xs text-gray-400">${escapeHtml(w.meaning)}</span></div>
+      <div class="flex items-center gap-2"><span class="fam-tag ${fc[w.familiarity]}" onclick="cycleFamiliarity(${ri})">${fl[w.familiarity]}</span>
+      <button onclick="removeFromBank(${ri})" class="text-gray-300 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition">✕</button></div></div>`;
+  }).join('');
+}
+
+// ============================================================
+// 文本解析
+// ============================================================
+function parseText() {
+  const text = document.getElementById('parseInput').value.trim();
+  if (!text) return;
+  const STOP = new Set(['the','be','to','of','and','a','in','that','have','i','it','for','not','on','with','he','as','you','do','at','this','but','his','by','from','they','we','say','her','she','or','an','will','my','one','all','would','there','their','what','so','up','out','if','about','who','get','which','go','me','when','make','can','like','time','no','just','him','know','take','people','into','year','your','good','some','could','them','see','other','than','then','now','look','only','come','its','over','think','also','back','after','use','two','how','our','work','first','well','way','even','new','want','because','any','these','give','day','most','us','is','are','was','were','been','being','had','has','did','does','done','am','may','might','must','shall','should','need','very','much','more','many','here','where','why','too','own','same','still','such','last','long','great','little','right','old','big','high','small','large','next','each','those','both','few','through','down','between','thing','put','let','lot','really','something']);
+  const raw = text.toLowerCase().replace(/[^a-z\s'-]/g, ' ').split(/\s+/);
+  const unique = [...new Set(raw)].filter(w => w.length >= 5 && !STOP.has(w) && /^[a-z]+$/.test(w));
+  const container = document.getElementById('parseResult');
+  container.classList.remove('hidden');
+  if (!unique.length) { container.innerHTML = '<p class="text-sm text-gray-400">未偵測到可提取的單字</p>'; return; }
+  container.innerHTML = `<p class="text-xs text-gray-400 mb-2">偵測到 ${unique.length} 個單字</p>
+    <div class="flex flex-wrap gap-2">${unique.slice(0, 20).map(w =>
+      `<span class="inline-flex items-center gap-1 text-sm px-2.5 py-1 rounded-full bg-morandi-sand/20 text-morandi-sand cursor-pointer hover:bg-morandi-sand/30 transition" onclick="addToBankFromParse('${escapeAttr(w)}')">${escapeHtml(w)} <span class="text-xs opacity-60">＋</span></span>`
+    ).join('')}</div>`;
+}
+function addToBankFromParse(word) {
+  if (wordBank.find(w => w.word.toLowerCase() === word.toLowerCase())) { alert(`「${word}」已經在生字庫裡了`); return; }
+  wordBank.unshift({ word, meaning: '（待翻譯）', source: 'parse', familiarity: 'unfamiliar', created: new Date().toISOString() });
+  saveBank(); renderWordBank();
+}
+
+// ============================================================
+// 工具
+// ============================================================
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function escapeAttr(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+
+</script>
+</body>
+</html>

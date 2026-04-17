@@ -1,0 +1,40 @@
+name: Daily Content Update
+
+on:
+  schedule:
+    # 每天台北時間凌晨 1:00 執行（UTC 17:00 = 台北 01:00）
+    - cron: '0 17 * * *'
+  workflow_dispatch: # 允許手動觸發
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run update script
+        run: npm run update
+
+      - name: Commit and push
+        run: |
+          git config user.name "ZenEnglish Bot"
+          git config user.email "bot@zen-english.github.io"
+          git add data.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: daily content update $(TZ='Asia/Taipei' date +%Y-%m-%d)"
+            git push
+          fi
