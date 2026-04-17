@@ -406,19 +406,69 @@ function changeTedVideo() {
 }
 
 // 渲染逐字稿
-function renderTranscript(slug) {
+async function renderTranscript(slug) {
   const area = document.getElementById('transcriptArea');
-  const lines = DATA.transcripts?.[slug];
+
+  // 先查本地資料
+  let lines = DATA.transcripts?.[slug];
+
+  // 本地沒有就即時從 TED 官網抓
   if (!lines || !lines.length) {
-    area.innerHTML = '<p class="text-xs text-gray-400 py-4 text-center">此演講暫無逐字稿，請直接開啟影片字幕觀看</p>';
+    area.innerHTML = '<div class="flex items-center gap-1 text-sm text-gray-400 py-4 justify-center">載入逐字稿中<span class="loading-dot">.</span><span class="loading-dot">.</span><span class="loading-dot">.</span></div>';
+    lines = await fetchTedTranscript(slug);
+  }
+
+  if (!lines || !lines.length) {
+    area.innerHTML = '<p class="text-xs text-gray-400 py-4 text-center">此演講暫無逐字稿</p>';
     return;
   }
+
   area.innerHTML = lines.map((line, i) => `
     <div class="transcript-line" onclick="speakLine(this)" data-index="${i}">
       <div class="transcript-en">${escapeHtml(line.en)}</div>
-      <div class="transcript-zh text-xs text-morandi-green/70 mt-0.5">${escapeHtml(line.zh)}</div>
+      <div class="transcript-zh text-xs text-morandi-green/70 mt-0.5">${escapeHtml(line.zh || '')}</div>
     </div>
   `).join('');
+}
+
+// 從 TED 官網即時抓逐字稿
+async function fetchTedTranscript(slug) {
+  try {
+    const url = `https://www.ted.com/talks/${slug}/transcript`;
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    const res = await fetch(proxyUrl);
+    if (!res.ok) return null;
+    const html = await res.text();
+
+    // 從 aria-label 提取逐字稿句子
+    const regex = /aria-label="([^"]{15,})"/g;
+    const skipStarts = ['play','pause','mute','share','save','like','comment','read','enter','exit','close','ted','learn','see all','theme','ideas','google play','download on','fullscreen','search'];
+    const sentences = [];
+    let match;
+    while ((match = regex.exec(html)) !== null) {
+      let text = match[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#x27;/g, "'").replace(/&#39;/g, "'").replace(/\n/g, ' ').trim();
+      if (skipStarts.some(x => text.toLowerCase().startsWith(x))) continue;
+      if (text.length > 15) sentences.push(text);
+    }
+    if (sentences.length < 3) return null;
+
+    // 合併成段落
+    const paragraphs = [];
+    let current = '';
+    for (const s of sentences) {
+      if (current.length + s.length > 300 && current) {
+        paragraphs.push(current.trim());
+        current = s;
+      } else {
+        current += (current ? ' ' : '') + s;
+      }
+    }
+    if (current) paragraphs.push(current.trim());
+
+    return paragraphs.map(p => ({ en: p, zh: '' }));
+  } catch {
+    return null;
+  }
 }
 
 // ============================================================
@@ -511,7 +561,10 @@ async function translateToZh(text) {
   try {
     const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0,500))}&langpair=en|zh-TW`);
     const d = await r.json();
-    return d?.responseData?.translatedText || '';
+    let t = d?.responseData?.translatedText || '';
+    // 過濾 MyMemory 警告訊息
+    if (t.toUpperCase().includes('MYMEMORY WARNING') || t.toUpperCase().includes('YOU USED ALL AVAILABLE')) return '';
+    return t;
   } catch { return ''; }
 }
 
@@ -747,21 +800,46 @@ async function parseText() {
     </div>`;
   }
 
-  // 偵測到的單字
+  // 偵測到的單字 — 先從本地查，沒有的批次翻譯
   if (unique.length) {
-    html += `<p class="text-xs text-gray-400 mb-2">偵測到 ${unique.length} 個單字</p><div class="space-y-1.5">`;
-    unique.slice(0, 20).forEach(w => {
+    const words = unique.slice(0, 20);
+    const wordData = [];
+    const needTranslate = [];
+
+    for (const w of words) {
       const local = localLookup(w);
-      const zh = local?.meaning || '';
+      if (local?.meaning) {
+        wordData.push({ word: w, zh: local.meaning });
+      } else {
+        wordData.push({ word: w, zh: '' });
+        needTranslate.push(w);
+      }
+    }
+
+    // 批次翻譯不在本地庫裡的單字
+    if (needTranslate.length) {
+      const batchText = needTranslate.join(', ');
+      const batchZh = await translateToZh(batchText);
+      if (batchZh) {
+        const parts = batchZh.split(/[,，、]\s*/);
+        for (let i = 0; i < Math.min(parts.length, needTranslate.length); i++) {
+          const item = wordData.find(d => d.word === needTranslate[i]);
+          if (item && parts[i].trim()) item.zh = parts[i].trim();
+        }
+      }
+    }
+
+    html += `<p class="text-xs text-gray-400 mb-2">偵測到 ${unique.length} 個單字</p><div class="space-y-1.5">`;
+    for (const d of wordData) {
       html += `<div class="flex items-center justify-between py-1.5 px-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
         <div class="flex items-center gap-2 min-w-0">
-          <button onclick="speak('${escapeAttr(w)}')" class="text-gray-300 hover:text-morandi-blue text-sm shrink-0">🔊</button>
-          <span class="font-medium text-sm">${escapeHtml(w)}</span>
-          ${zh ? `<span class="text-xs text-gray-400 truncate">${escapeHtml(zh)}</span>` : ''}
+          <button onclick="speak('${escapeAttr(d.word)}')" class="text-gray-300 hover:text-morandi-blue text-sm shrink-0">🔊</button>
+          <span class="font-medium text-sm">${escapeHtml(d.word)}</span>
+          ${d.zh ? `<span class="text-xs text-gray-400 truncate">${escapeHtml(d.zh)}</span>` : ''}
         </div>
-        <button onclick="addToBankFromParse('${escapeAttr(w)}','${escapeAttr(zh)}')" class="text-xs text-morandi-pink hover:underline shrink-0 ml-2">＋ 加入</button>
+        <button onclick="addToBankFromParse('${escapeAttr(d.word)}','${escapeAttr(d.zh)}')" class="text-xs text-morandi-pink hover:underline shrink-0 ml-2">＋ 加入</button>
       </div>`;
-    });
+    }
     html += '</div>';
   } else {
     html += '<p class="text-sm text-gray-400">未偵測到可提取的單字</p>';
