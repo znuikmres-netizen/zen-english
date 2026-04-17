@@ -431,39 +431,51 @@ async function renderTranscript(slug) {
   `).join('');
 }
 
-// 從 TED 官網即時抓逐字稿
+// 從 TED 官網即時抓逐字稿（VTT 字幕）
 async function fetchTedTranscript(slug) {
   try {
-    const url = `https://www.ted.com/talks/${slug}/transcript`;
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-    const res = await fetch(proxyUrl);
-    if (!res.ok) return null;
-    const html = await res.text();
+    // Step 1: 從 TED 頁面取得 playerData.id
+    const pageRes = await fetch(`https://api.codetabs.com/v1/proxy?quest=https://www.ted.com/talks/${slug}`);
+    if (!pageRes.ok) return null;
+    const html = await pageRes.text();
+    const nextDataMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s);
+    if (!nextDataMatch) return null;
+    const nextData = JSON.parse(nextDataMatch[1]);
+    const playerData = JSON.parse(nextData.props.pageProps.videoData.playerData);
+    const talkId = playerData.id;
+    if (!talkId) return null;
 
-    // 從 aria-label 提取逐字稿句子
-    const regex = /aria-label="([^"]{15,})"/g;
-    const skipStarts = ['play','pause','mute','share','save','like','comment','read','enter','exit','close','ted','learn','see all','theme','ideas','google play','download on','fullscreen','search'];
+    // Step 2: 直接抓 VTT 字幕（無 CORS 限制）
+    const vttRes = await fetch(`https://hls.ted.com/talks/${talkId}/subtitles/en/full.vtt`);
+    if (!vttRes.ok) return null;
+    const vtt = await vttRes.text();
+
+    // Step 3: 解析 VTT → 合併成段落
+    const lines = vtt.split('\n');
     const sentences = [];
-    let match;
-    while ((match = regex.exec(html)) !== null) {
-      let text = match[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#x27;/g, "'").replace(/&#39;/g, "'").replace(/\n/g, ' ').trim();
-      if (skipStarts.some(x => text.toLowerCase().startsWith(x))) continue;
-      if (text.length > 15) sentences.push(text);
+    let current = '';
+    for (const line of lines) {
+      if (line.includes('-->') || line.startsWith('WEBVTT') || line.startsWith('X-TIMESTAMP') || !line.trim()) {
+        if (current.trim()) { sentences.push(current.trim()); current = ''; }
+        continue;
+      }
+      current += (current ? ' ' : '') + line.trim();
     }
+    if (current.trim()) sentences.push(current.trim());
     if (sentences.length < 3) return null;
 
-    // 合併成段落
+    // 合併短句成段落（約 200-300 字一段）
     const paragraphs = [];
-    let current = '';
+    let para = '';
     for (const s of sentences) {
-      if (current.length + s.length > 300 && current) {
-        paragraphs.push(current.trim());
-        current = s;
+      if (para.length + s.length > 250 && para) {
+        paragraphs.push(para.trim());
+        para = s;
       } else {
-        current += (current ? ' ' : '') + s;
+        para += (para ? ' ' : '') + s;
       }
     }
-    if (current) paragraphs.push(current.trim());
+    if (para) paragraphs.push(para.trim());
 
     return paragraphs.map(p => ({ en: p, zh: '' }));
   } catch {
@@ -558,14 +570,28 @@ function localLookup(word) {
 }
 
 async function translateToZh(text) {
+  if (!text) return '';
+  // 嘗試多個免費翻譯 API
+  // 1. Google Translate 非官方端點
+  try {
+    const r = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-TW&dt=t&q=${encodeURIComponent(text.slice(0,500))}`);
+    if (r.ok) {
+      const d = await r.json();
+      const result = (d[0] || []).map(x => x[0]).join('');
+      if (result) return result;
+    }
+  } catch {}
+  // 2. MyMemory 備用
   try {
     const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0,500))}&langpair=en|zh-TW`);
-    const d = await r.json();
-    let t = d?.responseData?.translatedText || '';
-    // 過濾 MyMemory 警告訊息
-    if (t.toUpperCase().includes('MYMEMORY WARNING') || t.toUpperCase().includes('YOU USED ALL AVAILABLE')) return '';
-    return t;
-  } catch { return ''; }
+    if (r.ok) {
+      const d = await r.json();
+      let t = d?.responseData?.translatedText || '';
+      if (t.toUpperCase().includes('MYMEMORY WARNING') || t.toUpperCase().includes('YOU USED ALL AVAILABLE')) return '';
+      return t;
+    }
+  } catch {}
+  return '';
 }
 
 async function lookupWord() {
