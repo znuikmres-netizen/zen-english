@@ -386,12 +386,34 @@ function stopReading() {
   document.getElementById('pauseBtn').classList.add('hidden');
 }
 
-function toggleTranscriptZh() {
+async function toggleTranscriptZh() {
   showTranscriptZh = !showTranscriptZh;
-  document.getElementById('transcriptArea').classList.toggle('show-zh', showTranscriptZh);
+  const area = document.getElementById('transcriptArea');
+  area.classList.toggle('show-zh', showTranscriptZh);
   const btn = document.getElementById('toggleZhBtn');
   btn.textContent = showTranscriptZh ? '隱藏中文' : '中文';
   btn.classList.toggle('text-morandi-green', showTranscriptZh);
+  if (showTranscriptZh) await fillMissingTranscriptZh();
+}
+
+// 把空的 zh 逐段即時翻譯補上
+async function fillMissingTranscriptZh() {
+  const area = document.getElementById('transcriptArea');
+  const pending = [...area.querySelectorAll('.transcript-line')].filter(el => {
+    const zh = el.querySelector('.transcript-zh');
+    return zh && !zh.textContent.trim() && !zh.dataset.loading;
+  });
+  if (!pending.length) return;
+  for (const el of pending) {
+    const zh = el.querySelector('.transcript-zh');
+    const en = el.querySelector('.transcript-en')?.textContent || '';
+    if (!en.trim()) continue;
+    zh.dataset.loading = '1';
+    zh.textContent = '翻譯中…';
+    const t = await translateToZh(en);
+    zh.textContent = t || '（翻譯暫時無法使用）';
+    delete zh.dataset.loading;
+  }
 }
 
 function changeTedVideo() {
