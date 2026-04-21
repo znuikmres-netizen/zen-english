@@ -73,26 +73,37 @@ async function translateGoogle(text) {
   } catch { return ''; }
 }
 
-// Group aligned cues into paragraphs (~200 chars EN)
-function groupIntoParagraphs(enCues, zhCues) {
-  // Build lookup by start timestamp for zh
-  const zhMap = new Map();
-  if (zhCues) for (const c of zhCues) zhMap.set(c.start, c.text);
+// 00:01:23.456 → 83.456 秒
+function tsToSec(ts) {
+  const [h, m, s] = ts.split(':');
+  return parseInt(h)*3600 + parseInt(m)*60 + parseFloat(s);
+}
 
-  const result = [];
-  let enBuf = '', zhBuf = '';
+// 以英文段落的時間範圍為基準，把所有重疊的中文 cue 全部收進來
+function groupIntoParagraphs(enCues, zhCues) {
+  // 先把英文 cue 合併成段落，記錄每段的 [startSec, endSec]
+  const enParas = [];
+  let buf = [], bufStart = null, bufEnd = null;
   for (const c of enCues) {
-    const enSeg = c.text;
-    const zhSeg = zhMap.get(c.start) || '';
-    if (enBuf.length + enSeg.length > 200 && enBuf) {
-      result.push({ en: enBuf.trim(), zh: zhBuf.trim() });
-      enBuf = enSeg; zhBuf = zhSeg;
-    } else {
-      enBuf += (enBuf ? ' ' : '') + enSeg;
-      zhBuf += (zhBuf ? ' ' : '') + zhSeg;
+    if (bufStart === null) bufStart = tsToSec(c.start);
+    bufEnd = tsToSec(c.end);
+    buf.push(c.text);
+    const joined = buf.join(' ');
+    if (joined.length > 200) {
+      enParas.push({ text: joined.trim(), start: bufStart, end: bufEnd });
+      buf = []; bufStart = null; bufEnd = null;
     }
   }
-  if (enBuf) result.push({ en: enBuf.trim(), zh: zhBuf.trim() });
+  if (buf.length) enParas.push({ text: buf.join(' ').trim(), start: bufStart, end: bufEnd });
+
+  // 對每段英文，收集時間範圍重疊的所有中文 cue
+  const zhSorted = (zhCues || []).map(c => ({ text: c.text, start: tsToSec(c.start), end: tsToSec(c.end) }));
+  const result = [];
+  for (const p of enParas) {
+    const overlap = zhSorted.filter(z => z.start < p.end && z.end > p.start);
+    const zhText = overlap.map(z => z.text).join(' ').trim();
+    result.push({ en: p.text, zh: zhText });
+  }
   return result;
 }
 
