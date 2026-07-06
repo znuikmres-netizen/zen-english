@@ -1,9 +1,9 @@
 {
-  "lastUpdated": "2026-07-05T17:53:50.374Z",
-  "totalWords": 467,
+  "lastUpdated": "2026-07-06T18:50:02.883Z",
+  "totalWords": 474,
   "totalSlangs": 30,
   "totalQuotes": 30,
-  "totalTedSlugs": 46,
+  "totalTedSlugs": 47,
   "vocabulary": [
     {
       "word": "height",
@@ -11119,6 +11119,155 @@
       "example": "The concept of \"withdraw\" is important in this context.",
       "exampleZh": "",
       "phonetic": "/wɪðˈdɹɔː/"
+    },
+    {
+      "word": "position",
+      "pos": "n.",
+      "meaning": "position ：地方或位置。",
+      "definition": "A place or location.",
+      "tenses": [
+        {
+          "label": "單數",
+          "en": "position"
+        },
+        {
+          "label": "複數",
+          "en": "positions"
+        }
+      ],
+      "example": "This is an example of using \"position\" in a sentence.",
+      "exampleZh": "",
+      "phonetic": "/pəˈzɪʃ(ə)n/"
+    },
+    {
+      "word": "absolute",
+      "pos": "n.",
+      "meaning": "絕對：獨立於上下文相關解釋的，不可侵犯的，基本的。",
+      "definition": "That which is independent of context-dependent interpretation, inviolate, fundamental.",
+      "tenses": [
+        {
+          "label": "單數",
+          "en": "absolute"
+        },
+        {
+          "label": "複數",
+          "en": "absolutes"
+        }
+      ],
+      "example": "moral absolutes",
+      "exampleZh": "道德的絕對性",
+      "phonetic": "/ˈæb.səˌljuːt/"
+    },
+    {
+      "word": "vocabulary",
+      "pos": "n.",
+      "meaning": "詞彙：通常按字母順序排列和解釋的詞彙集合，例如特定領域的詞彙，或為特定目的準備的詞彙，通常用於學習。",
+      "definition": "A usually alphabetized and explained collection of words e.g. of a particular field, or prepared for a specific purpose, often for learning.",
+      "tenses": [
+        {
+          "label": "單數",
+          "en": "vocabulary"
+        },
+        {
+          "label": "複數",
+          "en": "vocabularies"
+        }
+      ],
+      "example": "My Russian vocabulary is very limited.",
+      "exampleZh": "我的俄語詞彙非常有限。",
+      "phonetic": "/vəʊˈkabjʊləɹɪ/"
+    },
+    {
+      "word": "responsive",
+      "pos": "adj.",
+      "meaning": "響應式：回答、回覆或回覆",
+      "definition": "Answering, replying or responding",
+      "tenses": [
+        {
+          "label": "原級",
+          "en": "responsive"
+        },
+        {
+          "label": "比較級",
+          "en": "more responsive"
+        },
+        {
+          "label": "最高級",
+          "en": "most responsive"
+        }
+      ],
+      "example": "This is an example of using \"responsive\" in a sentence.",
+      "exampleZh": "",
+      "phonetic": "/ɹɪˈspɒnsɪv/"
+    },
+    {
+      "word": "article",
+      "pos": "n.",
+      "meaning": "文章：一篇非虛構的文章，如故事、報告、意見文章或報紙、雜誌、期刊、字典、百科全書等中的條目。",
+      "definition": "A piece of nonfictional writing such as a story, report, opinion piece, or entry in a newspaper, magazine, journal, dictionary, encyclopedia, etc.",
+      "tenses": [
+        {
+          "label": "單數",
+          "en": "article"
+        },
+        {
+          "label": "複數",
+          "en": "articles"
+        }
+      ],
+      "example": "a sales article",
+      "exampleZh": "銷售文章",
+      "phonetic": "/ˈɑːtɪkəl/"
+    },
+    {
+      "word": "learning",
+      "pos": "v.",
+      "meaning": "學習：獲得或嘗試獲得知識或做某事的能力。",
+      "definition": "To acquire, or attempt to acquire knowledge or an ability to do something.",
+      "tenses": [
+        {
+          "label": "原形",
+          "en": "learning"
+        },
+        {
+          "label": "過去式",
+          "en": "learninged"
+        },
+        {
+          "label": "過去分詞",
+          "en": "learninged"
+        },
+        {
+          "label": "進行式",
+          "en": "learninging"
+        },
+        {
+          "label": "第三人稱單數",
+          "en": "learnings"
+        }
+      ],
+      "example": "This is an example of using \"learning\" in a sentence.",
+      "exampleZh": "",
+      "phonetic": "/ˈlɜːnɪŋ/"
+    },
+    {
+      "word": "english",
+      "pos": "n.",
+      "meaning": "英文：繞垂直軸旋轉或旋轉球，如臺球或保齡球。",
+      "definition": "Spinning or rotary motion given to a ball around the vertical axis, as in billiards or bowling.",
+      "tenses": [
+        {
+          "label": "單數",
+          "en": "english"
+        },
+        {
+          "label": "複數",
+          "en": "englishes"
+        }
+      ],
+      "example": "You can't hit it directly, but maybe if you give it some english.",
+      "exampleZh": "你不能直接打它，但也許你可以給它一些英語。",
+      "phonetic": "/ˈɪŋ.ɡlɪʃ/"
     }
   ],
   "slangs": [
@@ -11501,6 +11650,7 @@
     "jacob_collier_and_vso_school_of_music_orchestra_you_know_this_song_but_the_orchestra_doesn_t",
     "maya_shankar_simone_stolzoff_why_you_fear_the_unknown_and_what_it_can_teach_you",
     "lance_katigbak_why_countries_should_measure_dreams_and_ambitions_just_like_gdp",
-    "michael_dimock_why_democracy_requires_renewal"
+    "michael_dimock_why_democracy_requires_renewal",
+    "van_jones_the_kind_of_ai_we_actually_need"
   ]
 }
