@@ -1,9 +1,9 @@
 {
-  "lastUpdated": "2026-07-21T18:07:18.897Z",
+  "lastUpdated": "2026-07-22T18:00:04.908Z",
   "totalWords": 474,
   "totalSlangs": 30,
   "totalQuotes": 30,
-  "totalTedSlugs": 61,
+  "totalTedSlugs": 62,
   "vocabulary": [
     {
       "word": "height",
@@ -11665,6 +11665,7 @@
     "bulldog_brass_society_quintet_spark",
     "reed_hastings_sal_khan_why_ai_is_an_even_bigger_deal_than_you_think",
     "bruno_giussani_why_big_tech_is_incompatible_with_democracy",
-    "neil_frauenglass_and_anuj_gupta_you_have_more_power_than_you_realize"
+    "neil_frauenglass_and_anuj_gupta_you_have_more_power_than_you_realize",
+    "felix_brooks_church_how_i_built_a_machine_that_feeds_millions"
   ]
 }
