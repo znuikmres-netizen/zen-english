@@ -1,9 +1,9 @@
 {
-  "lastUpdated": "2026-07-30T18:08:10.380Z",
-  "totalWords": 474,
+  "lastUpdated": "2026-07-31T18:14:22.823Z",
+  "totalWords": 475,
   "totalSlangs": 30,
   "totalQuotes": 30,
-  "totalTedSlugs": 70,
+  "totalTedSlugs": 71,
   "vocabulary": [
     {
       "word": "height",
@@ -11268,6 +11268,25 @@
       "example": "You can't hit it directly, but maybe if you give it some english.",
       "exampleZh": "你不能直接打它，但也許你可以給它一些英語。",
       "phonetic": "/ˈɪŋ.ɡlɪʃ/"
+    },
+    {
+      "word": "performance",
+      "pos": "n.",
+      "meaning": "績效：執行的行為；執行或行動；執行；成就；成就；以行動表示。",
+      "definition": "The act of performing; carrying into execution or action; execution; achievement; accomplishment; representation by action.",
+      "tenses": [
+        {
+          "label": "單數",
+          "en": "performance"
+        },
+        {
+          "label": "複數",
+          "en": "performances"
+        }
+      ],
+      "example": "the performance of an undertaking or a duty",
+      "exampleZh": "履行承諾或職責",
+      "phonetic": "[pə.ˈfɔː.məns]"
     }
   ],
   "slangs": [
@@ -11674,6 +11693,7 @@
     "wallis_bird_to_my_bones_as_the_river_flows_in_dictum",
     "bill_mckibben_our_last_best_chance_to_cool_the_earth",
     "joe_whale_how_doodling_unlocks_your_imagination",
-    "ian_bremmer_two_wars_no_clear_exit_plan_now_what"
+    "ian_bremmer_two_wars_no_clear_exit_plan_now_what",
+    "sally_kohn_why_economic_inequality_is_the_biggest_threat_to_democracy"
   ]
 }
