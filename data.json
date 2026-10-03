@@ -1,6 +1,6 @@
 {
-  "lastUpdated": "2026-10-02T21:09:21.202Z",
-  "totalWords": 475,
+  "lastUpdated": "2026-10-03T19:38:10.291Z",
+  "totalWords": 479,
   "totalSlangs": 30,
   "totalQuotes": 30,
   "totalTedSlugs": 124,
@@ -11287,6 +11287,82 @@
       "example": "the performance of an undertaking or a duty",
       "exampleZh": "履行承諾或職責",
       "phonetic": "[pə.ˈfɔː.məns]"
+    },
+    {
+      "word": "class",
+      "pos": "n.",
+      "meaning": "class ：羣組、集合、類別或設置共享特性或屬性。",
+      "definition": "A group, collection, category or set sharing characteristics or attributes.",
+      "tenses": [
+        {
+          "label": "單數",
+          "en": "class"
+        },
+        {
+          "label": "複數",
+          "en": "classes"
+        }
+      ],
+      "example": "Often used to imply membership of a large class.",
+      "exampleZh": "通常用於暗示大型班級的成員資格。",
+      "phonetic": "/klas/"
+    },
+    {
+      "word": "location",
+      "pos": "n.",
+      "meaning": "地點：物理空間中的特定點或地點。",
+      "definition": "A particular point or place in physical space.",
+      "tenses": [
+        {
+          "label": "單數",
+          "en": "location"
+        },
+        {
+          "label": "複數",
+          "en": "locations"
+        }
+      ],
+      "example": "This is an example of using \"location\" in a sentence.",
+      "exampleZh": "",
+      "phonetic": "/ləʊˈkeɪʃən/"
+    },
+    {
+      "word": "agent",
+      "pos": "n.",
+      "meaning": "代理人：施加權力或有權採取行動的人",
+      "definition": "One who exerts power, or has the power to act",
+      "tenses": [
+        {
+          "label": "單數",
+          "en": "agent"
+        },
+        {
+          "label": "複數",
+          "en": "agents"
+        }
+      ],
+      "example": "This is an example of using \"agent\" in a sentence.",
+      "exampleZh": "",
+      "phonetic": "/ˈeɪ.dʒənt/"
+    },
+    {
+      "word": "phone",
+      "pos": "n.",
+      "meaning": "手機：一種用於跨距離實時傳輸對話和其他聲音的設備，現在通常是一個能夠運行軟件的小型便攜式設備等。",
+      "definition": "A device for transmitting conversations and other sounds in real time across distances, now often a small portable unit also capable of running software etc.",
+      "tenses": [
+        {
+          "label": "單數",
+          "en": "phone"
+        },
+        {
+          "label": "複數",
+          "en": "phones"
+        }
+      ],
+      "example": "This is an example of using \"phone\" in a sentence.",
+      "exampleZh": "",
+      "phonetic": "/fəʊ̯n/"
     }
   ],
   "slangs": [
